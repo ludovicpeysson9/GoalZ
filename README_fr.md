@@ -1,16 +1,33 @@
-# goalz
+# GoalZ 🎯
 
-A new Flutter project.
+---
 
-## Getting Started
+**GoalZ** est une application Mobile **100 % gratuite** et **sans publicité** contre la procrastination.  
+**Date de la dernière version 15/07/2025**
 
-This project is a starting point for a Flutter application.
+---
 
-A few resources to get you started if this is your first Flutter project:
+## Fonctionnalités principales
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+L'application a pour but de vaincre la procrastination en permettant à l'utilisateur de se définir des objectifs journaliers, mensuels, trimestriels et annuels. 
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Une vue "Statistiques" sera disponible pour pouvoir voir son taux d'assiduité.
+
+Il aura accès à une page de paramètres lui permettant de définir les différents rappels et également activer/désactiver la vue des statistiques.
+
+---
+
+## Installation 
+1. Téléchargez l'apk dans le dossier **`/release`**.
+2. Depuis votre téléphone Android, ouvrez l’APK pour l’installer (autoriser « sources inconnues » si nécessaire).
+
+---
+
+## Autorisations
+
+**Attention** : Pour fonctionner, l'application aura besoin de toutes les autorisations nécessaires concernant les notifications.
+
+---
+
+> **Gratuit et sans publicité**  
+> Profitez de MedZ sans aucune publicité ni frais cachés.
