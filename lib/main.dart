@@ -31,6 +31,11 @@ Future<void> _setupNotifications() async {
 
 Future<void> main() async { 
   WidgetsFlutterBinding.ensureInitialized();
+
+  FlutterError.onError = (FlutterErrorDetails details) {
+    print('Flutter Error: ${details.exception}');
+    print('Stack trace: ${details.stack}');
+  };
   
   // Initialiser les time zones
   tz.initializeTimeZones();
