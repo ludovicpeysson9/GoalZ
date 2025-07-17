@@ -3,7 +3,7 @@
 ---
 
 **GoalZ** est une application Mobile **100 % gratuite** et **sans publicité** contre la procrastination.  
-**Date de la dernière version 16/07/2025**
+**Date de la dernière version 17/07/2025**
 
 ---
 
