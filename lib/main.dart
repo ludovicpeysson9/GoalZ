@@ -13,13 +13,13 @@ Future<void> _setupNotifications() async {
   final notificationService = NotificationService();
   final settings = await SettingsService.loadSettings();
   final goalStorage = GoalStorageService();
-  
+
   // Vérifier quels types d'objectifs existent
   final dailyGoals = await goalStorage.loadGoals('daily');
   final monthlyGoals = await goalStorage.loadGoals('monthly');
   final quarterlyGoals = await goalStorage.loadGoals('quarterly');
   final annualGoals = await goalStorage.loadGoals('annual');
-  
+
   await notificationService.setupAllNotifications(
     hasDailyGoals: dailyGoals.isNotEmpty,
     hasMonthlyGoals: monthlyGoals.isNotEmpty,
@@ -29,34 +29,44 @@ Future<void> _setupNotifications() async {
   );
 }
 
-Future<void> main() async { 
+Future<void> main() async {
+  print('🚀 APP STARTING');
+
   WidgetsFlutterBinding.ensureInitialized();
 
   FlutterError.onError = (FlutterErrorDetails details) {
     print('Flutter Error: ${details.exception}');
     print('Stack trace: ${details.stack}');
   };
-  
+
+  final goalStorage = GoalStorageService();
+  final isFresh = await goalStorage.isFreshInstall();
+
+  if (isFresh) {
+    print('🧹 Fresh install detected - cleaning old data');
+    await goalStorage.forceCleanReset();
+  }
+
   // Initialiser les time zones
   tz.initializeTimeZones();
-  
+
   // Initialiser AndroidAlarmManager
   await AndroidAlarmManager.initialize();
-  
+
   // Initialiser le service de notifications
   final notificationService = NotificationService();
   await notificationService.init();
-  
+
   // CRUCIAL : Demander les permissions de notifications
   await notificationService.requestPermissions();
-  
+
   // Initialiser les paramètres par défaut
-  await SettingsService.saveDefaultSettings(); 
-  
+  await SettingsService.saveDefaultSettings();
+
   // Programmer les tâches cron
   await GoalCron.scheduleAll();
   await GoalCron.catchUpMissedRuns();
-  
+
   // CRUCIAL : Configurer les notifications selon les paramètres
   await _setupNotifications();
 
@@ -76,7 +86,7 @@ class MyApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [ Locale('fr'), Locale('en') ],
+      supportedLocales: const [Locale('fr'), Locale('en')],
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
         useMaterial3: true,

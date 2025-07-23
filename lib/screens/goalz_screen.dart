@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:goalz/l10n/app_localizations.dart';
+import 'package:goalz/services/notification_service.dart';
+import 'package:goalz/services/settings_service.dart';
 import '../services/goal_storage_service.dart';
 import '../widgets/goal_card.dart';
 import '../widgets/goal_form.dart';
@@ -27,29 +29,133 @@ class _GoalZScreenState extends State<GoalZScreen> {
   Map<int, bool> dayAccomplished = {0: false, 1: false, 2: false, 3: false};
   bool isFormOpen = false;
 
+  Timer? _dailyTimer;
+
   @override
   void initState() {
+    print('📱 GoalZScreen initState() called');
     super.initState();
     _loadAllGoals();
     _setupDailyTimer();
   }
 
+  @override
+  void dispose() {
+    _dailyTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _loadAllGoals() async {
+    print('📚 Loading all goals...');
+
     for (int i = 0; i < 4; i++) {
       String type = _labels[i].toLowerCase();
       final goalMaps = await storageService.loadGoals(type);
+      print('📚 Loaded ${goalMaps.length} goals for $type');
+
       setState(() {
         goalsByType[i] = goalMaps.map((e) => Goal.fromJson(e)).toList();
         _updateDayAccomplished(i);
       });
     }
+    print('📚 All goals loaded');
   }
 
   void _setupDailyTimer() {
+    print('⏰ Setting up daily timer...');
+
+    _dailyTimer?.cancel();
+
     final now = DateTime.now();
-    final target = DateTime(now.year, now.month, now.day, 23, 59);
-    final duration = target.difference(now);
-    Timer(duration, _checkDailyAccomplished);
+    final tomorrow = DateTime(now.year, now.month, now.day + 1, 0, 0, 0);
+    final duration = tomorrow.difference(now);
+
+    print('⏰ Current time: $now');
+    print('⏰ Next trigger: $tomorrow');
+    print('⏰ Duration: ${duration.inHours}h ${duration.inMinutes % 60}m');
+
+    if (duration.inHours > 23) {
+      print('App just started, skipping immediate processing');
+      _dailyTimer = Timer(duration, () {
+        print('⏰ Daily timer triggered normally');
+        _processDailyGoals();
+        _setupDailyTimer();
+      });
+      return;
+    }
+
+    print(
+      'Timer configuré pour dans ${duration.inMinutes} minutes (${tomorrow})',
+    );
+
+    _dailyTimer = Timer(duration, () {
+      print('⏰ Daily timer triggered');
+      _processDailyGoals();
+      _setupDailyTimer();
+    });
+  }
+
+  Future<void> _processDailyGoals() async {
+    print('🔄 Processing daily goals at ${DateTime.now()}');
+
+    final dailyGoals = goalsByType[0];
+
+    if (dailyGoals == null || dailyGoals.isEmpty) {
+      print('No daily goals to process - skipping stats');
+      return;
+    }
+
+    final allDone = dailyGoals.every((g) => g.checks.every((c) => c));
+
+    print('All daily goals accomplished: $allDone');
+    print('Processing ${dailyGoals.length} daily goals');
+
+    await storageService.incrementStat(
+      "daily",
+      allDone ? "accomplished" : "ignored",
+    );
+
+    final goalsToKeep = <Goal>[];
+
+    for (final goal in dailyGoals) {
+      if (goal.autoRepeat) {
+        final resetGoal = Goal(
+          title: goal.title,
+          info: goal.info,
+          timesPerDay: goal.timesPerDay,
+          checks: List.filled(goal.timesPerDay, false),
+          autoRepeat: goal.autoRepeat,
+        );
+        goalsToKeep.add(resetGoal);
+        print('✅ Renewed goal: ${goal.title}');
+      } else {
+        print('🗑️ Removed goal: ${goal.title}');
+      }
+    }
+
+    setState(() {
+      goalsByType[0] = goalsToKeep;
+      _updateDayAccomplished(0);
+    });
+
+    await _saveGoals(0);
+
+    print('Daily goals processed. Remaining: ${goalsToKeep.length}');
+
+    await _reconfigureNotifications();
+  }
+
+  Future<void> _reconfigureNotifications() async {
+    final notificationService = NotificationService();
+    final settings = await SettingsService.loadSettings();
+
+    await notificationService.setupAllNotifications(
+      hasDailyGoals: (goalsByType[0] ?? []).isNotEmpty,
+      hasMonthlyGoals: (goalsByType[1] ?? []).isNotEmpty,
+      hasQuarterlyGoals: (goalsByType[2] ?? []).isNotEmpty,
+      hasAnnualGoals: (goalsByType[3] ?? []).isNotEmpty,
+      config: settings,
+    );
   }
 
   void _checkDailyAccomplished() async {
@@ -64,13 +170,19 @@ class _GoalZScreenState extends State<GoalZScreen> {
     );
   }
 
-  void _addGoal(int type, String title, String? info, int timesPerDay, bool autoRepeat) async {
+  void _addGoal(
+    int type,
+    String title,
+    String? info,
+    int timesPerDay,
+    bool autoRepeat,
+  ) async {
     final goal = Goal(
       title: title,
       info: info,
       timesPerDay: timesPerDay,
       checks: List.filled(timesPerDay, false),
-      autoRepeat: autoRepeat
+      autoRepeat: autoRepeat,
     );
     setState(() {
       goalsByType[type]!.add(goal);
@@ -78,6 +190,8 @@ class _GoalZScreenState extends State<GoalZScreen> {
     });
     await _saveGoals(type);
     _updateDayAccomplished(type);
+
+    await _reconfigureNotifications();
   }
 
   Future<void> _saveGoals(int type) async {
@@ -204,7 +318,7 @@ class _GoalZScreenState extends State<GoalZScreen> {
 
                     Column(
                       children: [
-                        const SizedBox(height: 80), 
+                        const SizedBox(height: 80),
                         Center(
                           child: CustomCalendarStamp(
                             type: (index == 0 || index == 1)
@@ -250,7 +364,6 @@ class _GoalZScreenState extends State<GoalZScreen> {
                       ],
                     ),
 
-                    // ✅ CORRECTION : Formulaire maintenant dans Stack principal (pas dans Column)
                     if (isFormOpen)
                       Positioned(
                         left: 0,
@@ -310,14 +423,14 @@ class _GoalZScreenState extends State<GoalZScreen> {
                         ),
                       ),
 
-                    // ✅ CORRECTION : Masquer quand formulaire ouvert
                     if (!isFormOpen)
                       Positioned(
                         top: 15,
                         left: 15,
                         child: GestureDetector(
                           onTap: () async {
-                            const url = 'https://buymeacoffee.com/ludovicpeysson';
+                            const url =
+                                'https://buymeacoffee.com/ludovicpeysson';
                             final launched = await launchUrlString(
                               url,
                               mode: LaunchMode.externalApplication,
@@ -325,7 +438,11 @@ class _GoalZScreenState extends State<GoalZScreen> {
                             if (!launched) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(context.loc.t(L10nKey.impossibleToOpenCoffeeLink)),
+                                  content: Text(
+                                    context.loc.t(
+                                      L10nKey.impossibleToOpenCoffeeLink,
+                                    ),
+                                  ),
                                 ),
                               );
                             }
@@ -341,7 +458,6 @@ class _GoalZScreenState extends State<GoalZScreen> {
                         ),
                       ),
 
-                    // ✅ CORRECTION : Masquer quand formulaire ouvert
                     if (goals.isNotEmpty && !isFormOpen)
                       Positioned(
                         top: 10,
@@ -363,8 +479,12 @@ class _GoalZScreenState extends State<GoalZScreen> {
                                 ),
                                 content: Text(
                                   accomplished
-                                      ? context.loc.t(L10nKey.reconsiderTheDayText)
-                                      : context.loc.t(L10nKey.isDayValidatedText),
+                                      ? context.loc.t(
+                                          L10nKey.reconsiderTheDayText,
+                                        )
+                                      : context.loc.t(
+                                          L10nKey.isDayValidatedText,
+                                        ),
                                 ),
                                 actions: [
                                   TextButton(
